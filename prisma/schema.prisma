@@ -1,0 +1,290 @@
+// ============================================
+// PRISMA SCHEMA - Database Configuration
+// ============================================
+// Purpose: Define database structure and connection
+// What: Tells Prisma how to connect to your database
+// Why: Type-safe database access
+
+// Generator: Creates the Prisma Client (TypeScript types)
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Datasource: Database connection configuration
+datasource db {
+  provider = "postgresql"  // Database type: PostgreSQL
+  url      = env("DATABASE_URL")  // Connection string from .env file
+}
+
+// ============================================
+// MODELS (Database Tables)
+// ============================================
+// We'll add models (tables) here as we build features
+// For now, we'll start with a basic User model
+
+// User Model: Stores user account information
+model User {
+  id            String    @id @default(cuid())
+  // @id: Primary key (unique identifier)
+  // @default(cuid()): Auto-generate unique ID
+  
+  email         String    @unique
+  // @unique: No two users can have the same email
+  
+  name          String?
+  // String?: Optional field (can be null)
+  
+  password      String
+  // Will be hashed before storing (bcrypt)
+  
+  emailVerified DateTime?
+  // Timestamp for email verification
+  
+  image         String?
+  // Profile picture URL
+  
+  createdAt     DateTime  @default(now())
+  // @default(now()): Auto-set to current time on creation
+  
+  updatedAt     DateTime  @updatedAt
+  // @updatedAt: Auto-update on every save
+  
+  // ============================================
+  // RELATIONSHIPS
+  // ============================================
+  competitors   Competitor[]
+  // One user can have many competitors
+  
+  reports       Report[]
+  // One user can have many reports
+  
+  notifications Notification[]
+  // One user can have many notifications
+  
+  @@map("users")
+  // @@map: Use "users" as table name in database
+}
+
+// ============================================
+// COMPETITOR MODEL
+// ============================================
+// Purpose: Store competitor information
+// Why: Track multiple competitors for each user
+
+model Competitor {
+  id             String   @id @default(cuid())
+  // @id: Primary key
+  // @default(cuid()): Auto-generate unique ID
+  
+  name           String
+  // Competitor name (e.g., "Nike", "Amazon")
+  
+  url            String
+  // URL to track (e.g., "https://nike.com/product/123")
+  
+  platform       String   @default("website")
+  // Platform type: website, instagram, facebook, linkedin
+  
+  targetSelector String?
+  // CSS selector for specific element to track
+  // Example: ".product-price", "h1.title"
+  
+  isActive       Boolean  @default(true)
+  // Whether to actively track this competitor
+  
+  scrapeInterval Int      @default(24)
+  // How often to scrape (in hours)
+  
+  lastScrapedAt  DateTime?
+  // When this competitor was last scraped
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // ============================================
+  // RELATIONS
+  // ============================================
+  userId         String
+  // Which user owns this competitor
+  
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Link to User model
+  // onDelete: Cascade = Delete competitor when user is deleted
+  
+  snapshots      Snapshot[]
+  // All snapshots for this competitor
+  
+  changes        Change[]
+  // All detected changes for this competitor
+  
+  @@map("competitors")
+  // Table name in database
+}
+
+// ============================================
+// SNAPSHOT MODEL
+// ============================================
+// Purpose: Store scraped data for each competitor
+// Why: Need to compare snapshots to detect changes
+
+model Snapshot {
+  id           String   @id @default(cuid())
+  // @id: Primary key
+  
+  competitorId String
+  // Which competitor this snapshot belongs to
+  
+  html         String?  @db.Text
+  // Full HTML of the page
+  
+  screenshot   String?
+  // Base64 encoded screenshot
+  
+  extractedData Json?
+  // Structured data extracted from page
+  // Example: { price: "$120", title: "Product Name" }
+  
+  detectedPrice Float?
+  // Extracted price (if detected)
+  
+  detectedText String?  @db.Text
+  // Extracted text content
+  
+  createdAt    DateTime @default(now())
+  // When this snapshot was taken
+  
+  // ============================================
+  // RELATIONS
+  // ============================================
+  competitor   Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  // Link to Competitor model
+  
+  changes      Change[]
+  // Changes detected from this snapshot
+  
+  @@map("snapshots")
+}
+
+// ============================================
+// CHANGE MODEL
+// ============================================
+// Purpose: Track detected changes
+// Why: Store what changed, when, and how
+
+model Change {
+  id           String   @id @default(cuid())
+  // @id: Primary key
+  
+  competitorId String
+  // Which competitor this change belongs to
+  
+  snapshotId   String
+  // Which snapshot triggered this change
+  
+  changeType   String
+  // Type of change: price, content, product, campaign, other
+  
+  oldValue     String?  @db.Text
+  // Previous value (before change)
+  
+  newValue     String?  @db.Text
+  // New value (after change)
+  
+  confidence   Float    @default(1.0)
+  // How confident we are (0.0 to 1.0)
+  
+  isNotified   Boolean  @default(false)
+  // Whether user has been notified
+  
+  createdAt    DateTime @default(now())
+  // When this change was detected
+  
+  // ============================================
+  // RELATIONS
+  // ============================================
+  competitor   Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  // Link to Competitor model
+  
+  snapshot     Snapshot   @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  // Link to Snapshot model
+  
+  @@map("changes")
+}
+
+// ============================================
+// REPORT MODEL
+// ============================================
+// Purpose: Store AI-generated reports and insights
+// Why: Keep history of all AI-generated content
+
+model Report {
+  id             String   @id @default(cuid())
+  // @id: Primary key
+  
+  userId         String
+  // Which user this report belongs to
+  
+  title          String
+  // Report title (e.g., "Weekly Competitive Intelligence Report")
+  
+  summary        String   @db.Text
+  // AI-generated summary of changes
+  
+  insights       Json
+  // Structured insights
+  // Example: { keyChanges: [...], recommendations: [...] }
+  
+  competitors    String[]
+  // Array of competitor IDs included in this report
+  
+  period         String   @default("weekly")
+  // Report period: daily, weekly, monthly
+  
+  createdAt      DateTime @default(now())
+  // When this report was generated
+  
+  // ============================================
+  // RELATIONS
+  // ============================================
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Link to User model
+  
+  @@map("reports")
+}
+
+// ============================================
+// NOTIFICATION MODEL
+// ============================================
+// Purpose: Store notification history
+// Why: Track all sent notifications
+
+model Notification {
+  id        String   @id @default(cuid())
+  // @id: Primary key
+  
+  userId    String
+  // Which user this notification is for
+  
+  type      String
+  // Notification type: email, slack, in_app
+  
+  title     String
+  // Notification title
+  
+  message   String   @db.Text
+  // Notification message
+  
+  isRead    Boolean  @default(false)
+  // Whether user has read this notification
+  
+  createdAt DateTime @default(now())
+  // When notification was created
+  
+  // ============================================
+  // RELATIONS
+  // ============================================
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Link to User model
+  
+  @@map("notifications")
+}
