@@ -13,8 +13,8 @@ import { prisma } from '@/lib/db'
 // GET - GET SINGLE COMPETITOR
 // ============================================
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -27,11 +27,12 @@ export async function GET(
     }
 
     // Resolve by id or slug
+    const { id } = await context.params
     const competitor = await prisma.competitor.findFirst({
       where: {
         OR: [
-          { id: params.id },
-          { slug: params.id },
+          { id },
+          { slug: id },
         ],
       },
     })
@@ -65,8 +66,8 @@ export async function GET(
 // PUT - UPDATE COMPETITOR
 // ============================================
 export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -82,8 +83,9 @@ export async function PUT(
     const { name, url, platform, targetSelector, scrapeInterval, isActive } = body
 
     // Check if competitor exists and user owns it
+    const { id } = await context.params
     const existing = await prisma.competitor.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!existing) {
@@ -102,7 +104,7 @@ export async function PUT(
 
     // Update competitor
     const competitor = await prisma.competitor.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         name,
         url,
@@ -128,8 +130,8 @@ export async function PUT(
 // DELETE - DELETE COMPETITOR
 // ============================================
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -142,8 +144,9 @@ export async function DELETE(
     }
 
     // Check if competitor exists and user owns it
+    const { id } = await context.params
     const existing = await prisma.competitor.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!existing) {
@@ -162,7 +165,7 @@ export async function DELETE(
 
     // Delete competitor (cascades to snapshots and changes)
     await prisma.competitor.delete({
-      where: { id: params.id },
+      where: { id },
     })
 
     return NextResponse.json({ success: true })

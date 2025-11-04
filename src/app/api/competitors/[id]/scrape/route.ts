@@ -12,8 +12,8 @@ import { addScrapeJob } from '@/services/queue'
 import { checkRateLimitAsync, RATE_LIMITS } from '@/lib/rate-limit'
 
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -53,8 +53,9 @@ export async function POST(
     }
 
     // Get competitor
+    const { id } = await context.params
     const competitor = await prisma.competitor.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!competitor) {

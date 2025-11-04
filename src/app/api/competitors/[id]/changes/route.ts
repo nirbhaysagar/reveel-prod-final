@@ -10,8 +10,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -24,8 +24,9 @@ export async function GET(
     }
 
     // Get competitor
+    const { id } = await context.params
     const competitor = await prisma.competitor.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!competitor) {
@@ -44,7 +45,7 @@ export async function GET(
 
     // Get changes
     const changes = await prisma.change.findMany({
-      where: { competitorId: params.id },
+      where: { competitorId: id },
       orderBy: { createdAt: 'desc' },
       take: 50, // Limit to 50 most recent changes
     })
