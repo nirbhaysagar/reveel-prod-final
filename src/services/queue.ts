@@ -12,14 +12,32 @@ import { detectChanges } from './change-detector'
 import { prisma } from '@/lib/db'
 
 // ============================================
+// CHECK IF WE'RE IN BUILD MODE
+// ============================================
+// Only initialize workers at runtime, not during build
+const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build' || 
+                    process.env.npm_lifecycle_event === 'build'
+
+// ============================================
 // REDIS CONNECTION
 // ============================================
 // What: Connect to Redis
 // Why: BullMQ needs Redis to store jobs
+// Note: Use lazyConnect to prevent connection during build
 
-const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
+const connection = new Redis(redisUrl, {
   maxRetriesPerRequest: null,
+  lazyConnect: true, // Don't connect immediately
+  retryStrategy: isBuildTime ? () => null : undefined, // Don't retry during build
 })
+
+// Suppress connection errors during build
+if (isBuildTime) {
+  connection.on('error', () => {
+    // Silently ignore errors during build
+  })
+}
 
 // ============================================
 // SCRAPING QUEUE
@@ -34,7 +52,9 @@ export const scrapingQueue = new Queue('scraping', { connection })
 // ============================================
 // What: Worker that processes scraping jobs
 // Why: Actually executes the scraping tasks
+// Note: Worker is only used in separate worker process, not in Next.js build
 
+// Always create worker (worker.ts needs it), but it won't connect during build
 export const scrapingWorker = new Worker(
   'scraping',
   async (job: Job) => {
@@ -119,11 +139,6 @@ export const scrapingWorker = new Worker(
   },
   { 
     connection,
-    // ============================================
-    // RETRY CONFIGURATION
-    // ============================================
-    // What: Configure job retries
-    // Why: Handle temporary failures
     limiter: {
       max: 10, // Max 10 jobs at a time
       duration: 1000, // Per 1 second
@@ -146,7 +161,11 @@ scrapingWorker.on('failed', (job, err) => {
 })
 
 scrapingWorker.on('error', (err) => {
-  console.error('Worker error:', err)
+  // Suppress errors during build to reduce noise
+  if (!isBuildTime) {
+    console.error('Worker error:', err)
+  }
+  // During build, silently ignore connection errors
 })
 
 // ============================================
