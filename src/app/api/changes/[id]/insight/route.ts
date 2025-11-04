@@ -12,7 +12,7 @@ import { generateChangeInsight } from '@/services/ai'
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -25,8 +25,9 @@ export async function POST(
     }
 
     // Get change
+    const { id } = await context.params
     const change = await prisma.change.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         competitor: true,
       },
