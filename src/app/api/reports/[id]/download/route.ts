@@ -87,9 +87,10 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const userId = (session as any)?.user?.id as string
     const { id } = await context.params
     const report = await prisma.report.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, userId },
     })
 
     if (!report) {

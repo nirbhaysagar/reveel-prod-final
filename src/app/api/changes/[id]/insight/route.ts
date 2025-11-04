@@ -24,6 +24,8 @@ export async function POST(
       )
     }
 
+    const userId = (session as any)?.user?.id as string
+
     // Get change
     const { id } = await context.params
     const change = await prisma.change.findUnique({
@@ -40,7 +42,7 @@ export async function POST(
       )
     }
 
-    if (change.competitor.userId !== session.user.id) {
+    if (change.competitor.userId !== userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 403 }

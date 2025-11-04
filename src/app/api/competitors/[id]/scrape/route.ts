@@ -28,8 +28,9 @@ export async function POST(
     // ============================================
     // RATE LIMITING
     // ============================================
+    const userId = (session as any)?.user?.id as string
     const rateLimitResult = await checkRateLimitAsync(
-      `scrape:${session.user.id}`,
+      `scrape:${userId}`,
       RATE_LIMITS.scraping.maxRequests,
       RATE_LIMITS.scraping.windowMs
     )
@@ -65,7 +66,7 @@ export async function POST(
       )
     }
 
-    if (competitor.userId !== session.user.id) {
+    if (competitor.userId !== userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 403 }

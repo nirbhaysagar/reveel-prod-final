@@ -75,8 +75,8 @@ export const scrapingWorker = new Worker(
           competitorId: competitor.id,
           html: scrapedData.html,
           screenshot: scrapedData.screenshot,
-          extractedData: scrapedData.extractedData,
-          detectedText: scrapedData.extractedData as string,
+          extractedData: scrapedData.extractData,
+          detectedText: typeof scrapedData.extractData === 'string' ? scrapedData.extractData : JSON.stringify(scrapedData.extractData || ''),
         },
       })
 

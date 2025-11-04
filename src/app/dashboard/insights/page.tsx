@@ -11,14 +11,15 @@ export default async function InsightsPage() {
   }
 
   // Fetch latest report for this user (if any)
+  const userId = (session as any)?.user?.id as string
   const latestReport = await prisma.report.findFirst({
-    where: { userId: session.user.id },
+    where: { userId },
     orderBy: { createdAt: 'desc' },
   })
 
   // Fetch recent changes across competitors for this user
   const recentChanges = await prisma.change.findMany({
-    where: { competitor: { userId: session.user.id } },
+    where: { competitor: { userId } },
     orderBy: { createdAt: 'desc' },
     take: 10,
     include: { competitor: true },

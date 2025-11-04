@@ -34,9 +34,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Find all competitors for this user
+    const userId = (session as any)?.user?.id as string
     const competitors = await prisma.competitor.findMany({
       where: { 
-        userId: session.user.id 
+        userId 
       },
       orderBy: { createdAt: 'desc' }
     })
@@ -146,6 +147,7 @@ export async function POST(request: NextRequest) {
     const sanitizedSelector = targetSelector ? sanitizeString(targetSelector, 500) : null
 
     // Create competitor
+    const userId = (session as any)?.user?.id as string
     const competitor = await prisma.competitor.create({
       data: {
         name: sanitizedName,
@@ -154,7 +156,7 @@ export async function POST(request: NextRequest) {
         platform: safePlatform,
         targetSelector: sanitizedSelector,
         scrapeInterval: interval,
-        userId: session.user.id,
+        userId,
       },
     })
 

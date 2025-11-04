@@ -18,8 +18,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Ensure competitor belongs to user
+    const userId = (session as any)?.user?.id as string
     const competitor = await prisma.competitor.findFirst({
-      where: { id: competitorId, userId: session.user.id },
+      where: { id: competitorId, userId },
       select: { id: true },
     })
     if (!competitor) {

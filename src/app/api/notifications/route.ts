@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const notifications = await getUserNotifications(session.user.id)
+    const userId = (session as any)?.user?.id as string
+    const notifications = await getUserNotifications(userId)
 
     return NextResponse.json({ notifications })
     

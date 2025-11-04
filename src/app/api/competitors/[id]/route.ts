@@ -44,7 +44,8 @@ export async function GET(
       )
     }
 
-    if (competitor.userId !== session.user.id) {
+    const userId = (session as any)?.user?.id as string
+    if (competitor.userId !== userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 403 }
@@ -79,6 +80,7 @@ export async function PUT(
       )
     }
 
+    const userId = (session as any)?.user?.id as string
     const body = await request.json()
     const { name, url, platform, targetSelector, scrapeInterval, isActive } = body
 
@@ -95,7 +97,7 @@ export async function PUT(
       )
     }
 
-    if (existing.userId !== session.user.id) {
+    if (existing.userId !== userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 403 }
@@ -143,6 +145,7 @@ export async function DELETE(
       )
     }
 
+    const userId = (session as any)?.user?.id as string
     // Check if competitor exists and user owns it
     const { id } = await context.params
     const existing = await prisma.competitor.findUnique({
@@ -156,7 +159,7 @@ export async function DELETE(
       )
     }
 
-    if (existing.userId !== session.user.id) {
+    if (existing.userId !== userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 403 }

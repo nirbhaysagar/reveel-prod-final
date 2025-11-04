@@ -21,8 +21,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all reports for this user
+    const userId = (session as any)?.user?.id as string
     const reports = await prisma.report.findMany({
-      where: { userId: session.user.id },
+      where: { userId },
       orderBy: { createdAt: 'desc' },
       take: 20, // Limit to 20 most recent reports
     })

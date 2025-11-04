@@ -6,7 +6,7 @@ import { markNotificationAsRead } from '@/services/notifications'
 
 export async function PATCH(
   request: Request,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<Record<string, string>> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -14,9 +14,10 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const userId = (session as any)?.user?.id as string
     const { id } = await context.params
     const notif = await prisma.notification.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, userId },
       select: { id: true },
     })
     if (!notif) {
@@ -42,7 +43,7 @@ export async function PATCH(
 
 export async function POST(
   request: Request,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<Record<string, string>> }
 ) {
   try {
     const session = await getServerSession(authOptions)

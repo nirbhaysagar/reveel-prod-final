@@ -8,10 +8,11 @@ export default async function ReportsPage() {
   const session = await getServerSession(authOptions)
   if (!session) return null
 
+  const userId = (session as any)?.user?.id as string
   const [reports, totalReports, totalChanges] = await Promise.all([
-    prisma.report.findMany({ where: { userId: session.user.id }, orderBy: { createdAt: 'desc' }, take: 20 }),
-    prisma.report.count({ where: { userId: session.user.id } }),
-    prisma.change.count({ where: { competitor: { userId: session.user.id } } }),
+    prisma.report.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 20 }),
+    prisma.report.count({ where: { userId } }),
+    prisma.change.count({ where: { competitor: { userId } } }),
   ])
 
   const aiInsightsCount = reports.reduce((acc, r) => acc + ((r.insights as any)?.keyChanges?.length || 0), 0)

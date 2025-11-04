@@ -121,7 +121,6 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         // Persist user id to the token on sign in
-        // @ts-expect-error augment token with id
         token.id = (user as any).id
       }
       return token
@@ -129,8 +128,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       // Expose id on session.user so server routes can use session.user.id
       if (session.user && token) {
-        // @ts-expect-error augment session with id
-        session.user.id = (token as any).id as string
+        (session.user as any).id = (token as any).id as string
       }
       return session
     },

@@ -26,8 +26,9 @@ export async function POST(request: NextRequest) {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
     // Get all competitors for this user
+    const userId = (session as any)?.user?.id as string
     const competitors = await prisma.competitor.findMany({
-      where: { userId: session.user.id },
+      where: { userId },
       include: {
         changes: {
           where: {
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     // Save report to database
     const savedReport = await prisma.report.create({
       data: {
-        userId: session.user.id,
+        userId,
         title: `Weekly Report - ${new Date().toLocaleDateString()}`,
         summary: report.summary,
         insights: {

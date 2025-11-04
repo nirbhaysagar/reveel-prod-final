@@ -36,7 +36,8 @@ export async function GET(
       )
     }
 
-    if (competitor.userId !== session.user.id) {
+    const userId = (session as any)?.user?.id as string
+    if (competitor.userId !== userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 403 }

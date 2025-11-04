@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { scrapeCompetitor } from '@/src/services/scraper'
+import { scrapeCompetitor } from '@/services/scraper'
 
 export async function GET(request: NextRequest) {
 
