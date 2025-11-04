@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { markNotificationAsRead } from '@/services/notifications'
 
 export async function PATCH(
   request: NextRequest,
@@ -37,11 +38,6 @@ export async function PATCH(
 // ============================================
 // Purpose: Mark notification as read
 // Why: Track which notifications user has seen
-
-import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { markNotificationAsRead } from '@/services/notifications'
 
 export async function POST(
   request: NextRequest,

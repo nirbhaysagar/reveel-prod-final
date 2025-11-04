@@ -153,6 +153,38 @@ NODE_ENV="development"
    npm run start
    ```
 
+## 🧭 Production Guide (Recommended)
+
+### Environment Matrix
+App (Vercel)
+- Required: `DATABASE_URL`, `DIRECT_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `REDIS_URL`
+- Optional: `OPENAI_API_KEY`, `RESEND_API_KEY`, `ALLOWED_ORIGINS`
+
+Worker (Render/Railway/Fly)
+- Required: `DATABASE_URL`, `REDIS_URL`, `NODE_ENV=production`
+- Start command: `npm run worker`
+
+### One‑Time Job Seeding (per environment)
+After first deploy, log in as the admin and run in browser console:
+```
+fetch('/api/admin/schedule-scraping', { method: 'POST' })
+  .then(r => r.json())
+  .then(console.log)
+```
+This creates recurring scraping jobs for all active competitors. Remove the endpoint `src/app/api/admin/schedule-scraping/route.ts` after running in staging and production.
+
+### Checklist
+1. Add env vars to Vercel (staging → production)
+2. Deploy worker with `DATABASE_URL` and `REDIS_URL`
+3. Verify `/api/auth/session`
+4. Add a competitor and click “Scrape now” (watch worker logs)
+5. Remove the admin schedule endpoint
+
+### Troubleshooting
+- `client_fetch_error` from NextAuth: check `NEXTAUTH_URL` matches the deployed origin exactly
+- Worker idle: verify `REDIS_URL` and that the worker logs show a connection
+- DB schema mismatches: run `npx prisma migrate deploy` (migrations) or `npx prisma db push` once against the target DB
+
 ## 📊 Monitoring
 
 - **Vercel Analytics**: Built-in performance monitoring

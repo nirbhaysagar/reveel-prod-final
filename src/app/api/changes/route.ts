@@ -26,10 +26,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Competitor not found' }, { status: 404 })
     }
 
+    // Find the most recent snapshot for this competitor
+    const latestSnapshot = await prisma.snapshot.findFirst({
+      where: { competitorId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    })
+
+    if (!latestSnapshot) {
+      return NextResponse.json({ error: 'No snapshot found for competitor' }, { status: 400 })
+    }
+
     const change = await prisma.change.create({
       data: {
         competitorId,
-        snapshotId: competitorId, // placeholder relation until real snapshots exist
+        snapshotId: latestSnapshot.id,
         changeType,
         oldValue: oldValue ?? null,
         newValue: newValue ?? null,
