@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FileText, Sparkles, TrendingUp, Lightbulb } from 'lucide-react'
+import { FileText, Sparkles, TrendingUp, Lightbulb, Download } from 'lucide-react'
 
 export default function InsightsPage() {
   const [generating, setGenerating] = useState(false)
@@ -102,6 +102,46 @@ export default function InsightsPage() {
               </ul>
             </CardContent>
           </Card>
+
+          {/* Download */}
+          <div className="flex gap-3">
+            <Button onClick={async () => {
+              const res = await fetch(`/api/reports/${report.id}/download?format=pdf`)
+              const blob = await res.blob()
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `report-${report.id}.pdf`
+              a.click()
+              URL.revokeObjectURL(url)
+            }}>
+              <Download className="w-4 h-4 mr-2" /> Download PDF
+            </Button>
+            <Button variant="secondary" onClick={async () => {
+              const res = await fetch(`/api/reports/${report.id}/download?format=csv`)
+              const blob = await res.blob()
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `report-${report.id}.csv`
+              a.click()
+              URL.revokeObjectURL(url)
+            }}>
+              <Download className="w-4 h-4 mr-2" /> Download CSV
+            </Button>
+            <Button variant="outline" onClick={async () => {
+              const res = await fetch(`/api/reports/${report.id}/download?format=json`)
+              const blob = await res.blob()
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `report-${report.id}.json`
+              a.click()
+              URL.revokeObjectURL(url)
+            }}>
+              <Download className="w-4 h-4 mr-2" /> Download JSON
+            </Button>
+          </div>
         </div>
       )}
 
