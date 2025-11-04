@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { markNotificationAsRead } from '@/services/notifications'
 
 export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -14,8 +14,9 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { id } = await context.params
     const notif = await prisma.notification.findFirst({
-      where: { id: params.id, userId: session.user.id },
+      where: { id, userId: session.user.id },
       select: { id: true },
     })
     if (!notif) {
@@ -23,7 +24,7 @@ export async function PATCH(
     }
 
     await prisma.notification.update({
-      where: { id: params.id },
+      where: { id },
       data: { isRead: true },
     })
 
@@ -40,8 +41,8 @@ export async function PATCH(
 // Why: Track which notifications user has seen
 
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -53,7 +54,8 @@ export async function POST(
       )
     }
 
-    await markNotificationAsRead(params.id)
+    const { id } = await context.params
+    await markNotificationAsRead(id)
 
     return NextResponse.json({ success: true })
     
