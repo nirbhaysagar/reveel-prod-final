@@ -1,0 +1,30 @@
+# Worker image for background scraping jobs (Playwright + Node)
+# Uses the official Playwright base image to include Chromium dependencies
+FROM mcr.microsoft.com/playwright:v1.56.1-jammy
+
+WORKDIR /app
+
+# Copy package files first for better layer caching
+COPY package.json package-lock.json ./
+
+# Install all dependencies (including dev, to use tsx in runtime)
+RUN npm ci
+
+# Copy app source
+COPY . .
+
+# Ensure Prisma client is generated (postinstall runs prisma generate as well)
+RUN npm run db:generate || true
+
+# Environment variables expected at runtime:
+# - DATABASE_URL
+# - REDIS_URL
+# - NEXTAUTH_SECRET
+# - NEXTAUTH_URL
+# - OPENAI_API_KEY (optional)
+# - RESEND_API_KEY (optional)
+# - RESEND_FROM_EMAIL (optional)
+
+# Start the worker
+CMD ["npm", "run", "worker:prod"]
+
