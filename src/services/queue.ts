@@ -11,53 +11,120 @@ import { scrapeCompetitor } from './scraper'
 import { detectChanges } from './change-detector'
 import { prisma } from '@/lib/db'
 
+function extractPrice(data: any): number | null {
+  if (!data) return null
+
+  const text = typeof data === 'string' ? data : JSON.stringify(data)
+  
+  const pricePatterns = [
+    /\$\s?(\d+(?:[.,]\d{2})?)/,
+    /(?:price|cost|value)[\s:=]*\$?(\d+(?:[.,]\d{2})?)/i,
+    /(\d+(?:[.,]\d{2})?)\s*(?:USD|dollars?|\$)/i,
+    /^[\s$]*(\d+(?:[.,]\d{2})?)[\s$]*$/,
+  ]
+
+  for (const pattern of pricePatterns) {
+    const match = text.match(pattern)
+    if (match && match[1]) {
+      const priceStr = match[1].replace(/,/g, '.')
+      const price = parseFloat(priceStr)
+      if (!isNaN(price) && price > 0) {
+        return price
+      }
+    }
+  }
+
+  return null
+}
+
 // ============================================
 // CHECK IF WE'RE IN BUILD MODE
 // ============================================
 // Only initialize workers at runtime, not during build
-const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build' || 
-                    process.env.npm_lifecycle_event === 'build'
+// Vercel sets VERCEL=1 during runtime, so if it's production but no VERCEL, it's likely build
+const isBuildTime = typeof window === 'undefined' && (
+  process.env.NEXT_PHASE === 'phase-production-build' || 
+  process.env.npm_lifecycle_event === 'build' ||
+  (process.env.NODE_ENV === 'production' && !process.env.VERCEL && !process.env.REDIS_URL)
+)
 
 // ============================================
-// REDIS CONNECTION
+// REDIS CONNECTION (LAZY)
 // ============================================
 // What: Connect to Redis
 // Why: BullMQ needs Redis to store jobs
 // Note: Use lazyConnect to prevent connection during build
 
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
-const connection = new Redis(redisUrl, {
-  maxRetriesPerRequest: null,
-  lazyConnect: true, // Don't connect immediately
-  retryStrategy: isBuildTime ? () => null : undefined, // Don't retry during build
-})
+let connection: Redis | null = null
+let _scrapingQueue: Queue | null = null
+let _scrapingWorker: Worker | null = null
 
-// Suppress connection errors during build
-if (isBuildTime) {
-  connection.on('error', () => {
-    // Silently ignore errors during build
+function getRedisConnection(): Redis {
+  if (connection) return connection
+  
+  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
+  
+  connection = new Redis(redisUrl, {
+    maxRetriesPerRequest: null,
+    lazyConnect: true, // Don't connect immediately
+    enableOfflineQueue: false, // Don't queue commands if not connected
+    retryStrategy: isBuildTime ? () => null : undefined, // Don't retry during build
   })
+
+  // Suppress connection errors during build
+  if (isBuildTime) {
+    connection.on('error', () => {
+      // Silently ignore errors during build
+    })
+  }
+  
+  return connection
 }
 
-// ============================================
-// SCRAPING QUEUE
-// ============================================
-// What: Queue for scraping jobs
-// Why: Manage all scraping tasks
+function getQueue(): Queue {
+  if (_scrapingQueue) return _scrapingQueue
+  
+  // During build, don't create queue at all - return a mock
+  // This prevents any Redis connection attempts
+  if (isBuildTime) {
+    // Return a minimal mock that satisfies the Queue interface
+    // This will only be used during build-time analysis
+    _scrapingQueue = {
+      add: async () => ({ id: 'build-mock' } as any),
+      remove: async () => {},
+      getJob: async () => null,
+      getJobs: async () => [],
+      close: async () => {},
+    } as unknown as Queue
+    
+    return _scrapingQueue
+  }
+  
+  _scrapingQueue = new Queue('scraping', { 
+    connection: getRedisConnection(),
+  })
+  
+  return _scrapingQueue
+}
 
-export const scrapingQueue = new Queue('scraping', { connection })
-
-// ============================================
-// SCRAPING WORKER
-// ============================================
-// What: Worker that processes scraping jobs
-// Why: Actually executes the scraping tasks
-// Note: Worker is only used in separate worker process, not in Next.js build
-
-// Always create worker (worker.ts needs it), but it won't connect during build
-export const scrapingWorker = new Worker(
-  'scraping',
-  async (job: Job) => {
+function getWorker(): Worker {
+  if (_scrapingWorker) return _scrapingWorker
+  
+  // During build, don't create worker at all - return a mock
+  // This prevents any Redis connection attempts
+  if (isBuildTime) {
+    // Return a minimal mock that satisfies the Worker interface
+    _scrapingWorker = {
+      on: () => {},
+      close: async () => {},
+    } as unknown as Worker
+    
+    return _scrapingWorker
+  }
+  
+  _scrapingWorker = new Worker(
+    'scraping',
+    async (job: Job) => {
     const { competitorId } = job.data
     
     console.log(`Starting scrape job for competitor: ${competitorId}`)
@@ -90,13 +157,20 @@ export const scrapingWorker = new Worker(
       // ============================================
       // SAVE SNAPSHOT
       // ============================================
+      const detectedText = typeof scrapedData.extractData === 'string' 
+        ? scrapedData.extractData 
+        : JSON.stringify(scrapedData.extractData || '')
+      
+      const detectedPrice = extractPrice(detectedText) || extractPrice(scrapedData.extractData)
+
       const snapshot = await prisma.snapshot.create({
         data: {
           competitorId: competitor.id,
           html: scrapedData.html,
           screenshot: scrapedData.screenshot,
           extractedData: scrapedData.extractData,
-          detectedText: typeof scrapedData.extractData === 'string' ? scrapedData.extractData : JSON.stringify(scrapedData.extractData || ''),
+          detectedText: detectedText,
+          detectedPrice: detectedPrice,
         },
       })
 
@@ -138,35 +212,36 @@ export const scrapingWorker = new Worker(
     }
   },
   { 
-    connection,
+    connection: getRedisConnection(),
     limiter: {
       max: 10, // Max 10 jobs at a time
       duration: 1000, // Per 1 second
     },
-  }
-)
-
-// ============================================
-// JOB EVENT HANDLERS
-// ============================================
-// What: Handle job events
-// Why: Monitor job progress and errors
-
-scrapingWorker.on('completed', (job) => {
-  console.log(`Job ${job.id} completed successfully`)
-})
-
-scrapingWorker.on('failed', (job, err) => {
-  console.error(`Job ${job?.id} failed:`, err)
-})
-
-scrapingWorker.on('error', (err) => {
-  // Suppress errors during build to reduce noise
+  })
+  
+  // Only set up event handlers at runtime
   if (!isBuildTime) {
-    console.error('Worker error:', err)
+    _scrapingWorker.on('completed', (job) => {
+      console.log(`Job ${job.id} completed successfully`)
+    })
+
+    _scrapingWorker.on('failed', (job, err) => {
+      console.error(`Job ${job?.id} failed:`, err)
+    })
+
+    _scrapingWorker.on('error', (err) => {
+      console.error('Worker error:', err)
+    })
   }
-  // During build, silently ignore connection errors
-})
+  
+  return _scrapingWorker
+}
+
+// Export queue and worker - lazy initialization
+// These will be created when first accessed, not at module load
+// During build, isBuildTime is true so they won't connect to Redis
+export const scrapingQueue = getQueue()
+export const scrapingWorker = getWorker()
 
 // ============================================
 // SCHEDULE SCRAPING
@@ -175,7 +250,14 @@ scrapingWorker.on('error', (err) => {
 // Why: Automatically scrape on schedule
 
 export async function scheduleScraping() {
+  if (isBuildTime) {
+    console.log('Skipping scraping schedule during build')
+    return
+  }
+  
   console.log('Scheduling scraping jobs...')
+  
+  const queue = getQueue()
   
   // Get all active competitors
   const competitors = await prisma.competitor.findMany({
@@ -184,10 +266,10 @@ export async function scheduleScraping() {
 
   for (const competitor of competitors) {
     // Remove existing job for this competitor (if any)
-    await scrapingQueue.remove(competitor.id)
+    await queue.remove(competitor.id)
     
     // Add new recurring job
-    await scrapingQueue.add(
+    await queue.add(
       `scrape-${competitor.id}`,
       { competitorId: competitor.id },
       {
@@ -211,7 +293,12 @@ export async function scheduleScraping() {
 // Why: Allow manual triggers
 
 export async function addScrapeJob(competitorId: string) {
-  const job = await scrapingQueue.add(
+  if (isBuildTime) {
+    throw new Error('Cannot add scrape jobs during build')
+  }
+  
+  const queue = getQueue()
+  const job = await queue.add(
     `manual-scrape-${competitorId}`,
     { competitorId },
     {
@@ -229,7 +316,12 @@ export async function addScrapeJob(competitorId: string) {
 // Why: Monitor job progress
 
 export async function getJobStatus(jobId: string) {
-  const job = await scrapingQueue.getJob(jobId)
+  if (isBuildTime) {
+    return null
+  }
+  
+  const queue = getQueue()
+  const job = await queue.getJob(jobId)
   
   if (!job) {
     return null
@@ -256,7 +348,12 @@ export async function getJobStatus(jobId: string) {
 // Why: Monitor all scraping activity
 
 export async function getAllJobs() {
-  const jobs = await scrapingQueue.getJobs(['waiting', 'active', 'completed', 'failed'])
+  if (isBuildTime) {
+    return []
+  }
+  
+  const queue = getQueue()
+  const jobs = await queue.getJobs(['waiting', 'active', 'completed', 'failed'])
   
   return Promise.all(
     jobs.map(async (job) => ({
@@ -276,7 +373,13 @@ export async function getAllJobs() {
 // Why: Clean shutdown
 
 export async function closeQueue() {
-  await scrapingWorker.close()
-  await scrapingQueue.close()
-  await connection.quit()
+  if (_scrapingWorker) {
+    await _scrapingWorker.close()
+  }
+  if (_scrapingQueue) {
+    await _scrapingQueue.close()
+  }
+  if (connection) {
+    await connection.quit()
+  }
 }

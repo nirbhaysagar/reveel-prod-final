@@ -7,16 +7,54 @@
 //  - OpenAI (default): Uses official OpenAI SDK
 //  - Hugging Face: Uses Inference API via fetch
 
-import OpenAI from 'openai'
+// Dynamic import for OpenAI to prevent build-time initialization
+// This prevents the SDK from checking for API keys during Next.js build
 
 const AI_PROVIDER = (process.env.AI_PROVIDER || 'openai').toLowerCase()
 
-// OpenAI client (initialized only if used)
-const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY,
-  // Allows OpenAI-compatible providers like Grok (xAI) or OpenRouter
-  baseURL: process.env.OPENAI_BASE_URL || undefined,
-})
+// Check if we're in build mode
+// Next.js sets NEXT_PHASE during build, and npm sets npm_lifecycle_event
+const isBuildTime = typeof window === 'undefined' && (
+  process.env.NEXT_PHASE === 'phase-production-build' || 
+  process.env.npm_lifecycle_event === 'build' ||
+  (process.env.NODE_ENV === 'production' && !process.env.VERCEL && !process.env.OPENAI_API_KEY)
+)
+
+// OpenAI client (lazy-loaded using dynamic import)
+let openaiClient: any = null
+let OpenAIClass: any = null
+
+async function getOpenAIClient() {
+  // Don't initialize during build
+  if (isBuildTime) {
+    throw new Error('OpenAI client cannot be initialized during build')
+  }
+  
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY environment variable is not set')
+  }
+  
+  // Dynamically import OpenAI only when needed
+  if (!OpenAIClass) {
+    const OpenAIModule = await import('openai')
+    OpenAIClass = OpenAIModule.default
+  }
+  
+  if (!openaiClient) {
+    try {
+      openaiClient = new OpenAIClass({ 
+        apiKey: process.env.OPENAI_API_KEY,
+        // Allows OpenAI-compatible providers like Grok (xAI) or OpenRouter
+        baseURL: process.env.OPENAI_BASE_URL || undefined,
+      })
+    } catch (error) {
+      console.error('Failed to initialize OpenAI client:', error)
+      throw error
+    }
+  }
+  
+  return openaiClient
+}
 
 // Hugging Face config
 const HF_API_KEY = process.env.HF_API_KEY
@@ -69,6 +107,12 @@ async function openaiChat(prompt: string, {
   maxTokens = 300,
   temperature = 0.7,
 }: { maxTokens?: number; temperature?: number } = {}): Promise<string> {
+  // Check if we're in build mode or missing API key
+  if (isBuildTime || !process.env.OPENAI_API_KEY) {
+    throw new Error('OpenAI API is not available during build or API key is missing')
+  }
+  
+  const openai = await getOpenAIClient()
   const res = await openai.chat.completions.create({
     model: 'gpt-4',
     messages: [

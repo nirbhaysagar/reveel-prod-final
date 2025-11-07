@@ -110,12 +110,34 @@ export const RATE_LIMITS = {
 // What: Production-ready rate limit using Redis INCR + EX
 // Why: Works across multiple instances and persists across restarts
 
+// Check if we're in build mode
+const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build' || 
+                    process.env.npm_lifecycle_event === 'build'
+
 let redisClient: Redis | null = null
 function getRedis(): Redis | null {
+  // Don't create Redis connection during build
+  if (isBuildTime) {
+    return null
+  }
+  
   if (redisClient) return redisClient
   const url = process.env.REDIS_URL
   if (!url) return null
-  redisClient = new Redis(url, { maxRetriesPerRequest: null })
+  
+  redisClient = new Redis(url, { 
+    maxRetriesPerRequest: null,
+    lazyConnect: true, // Don't connect immediately
+    enableOfflineQueue: false, // Don't queue commands if not connected
+  })
+  
+  // Suppress connection errors during build
+  redisClient.on('error', (err) => {
+    if (!isBuildTime) {
+      console.error('Redis connection error:', err)
+    }
+  })
+  
   return redisClient
 }
 

@@ -15,7 +15,7 @@ export function validateUrl(url: string): { valid: boolean; error?: string } {
   try {
     const parsedUrl = new URL(url)
     
-    // Block internal/private IPs
+    // Block internal/private IPs unless explicitly allowed
     const hostname = parsedUrl.hostname.toLowerCase()
     const blockedHosts = [
       'localhost',
@@ -26,12 +26,12 @@ export function validateUrl(url: string): { valid: boolean; error?: string } {
       '169.254.169.254', // AWS/Azure metadata
     ]
     
-    if (blockedHosts.includes(hostname)) {
-      return { valid: false, error: 'Cannot scrape internal URLs' }
-    }
+    const allowLocalTesting =
+      process.env.ALLOW_INTERNAL_SCRAPE === 'true' ||
+      process.env.NEXT_PUBLIC_ALLOW_INTERNAL_SCRAPE === 'true'
     
-    // Block private IP ranges (simplified)
-    if (
+    const isBlockedHost = blockedHosts.includes(hostname)
+    const isPrivateRange =
       hostname.startsWith('192.168.') ||
       hostname.startsWith('10.') ||
       hostname.startsWith('172.16.') ||
@@ -50,15 +50,16 @@ export function validateUrl(url: string): { valid: boolean; error?: string } {
       hostname.startsWith('172.29.') ||
       hostname.startsWith('172.30.') ||
       hostname.startsWith('172.31.')
-    ) {
-      return { valid: false, error: 'Cannot scrape private network URLs' }
+
+    if (!allowLocalTesting && (isBlockedHost || isPrivateRange)) {
+      return { valid: false, error: 'Cannot scrape internal URLs' }
     }
     
     // Only allow HTTP/HTTPS
     if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
       return { valid: false, error: 'Only HTTP/HTTPS URLs are allowed' }
     }
-    
+
     return { valid: true }
   } catch (error) {
     return { valid: false, error: 'Invalid URL format' }

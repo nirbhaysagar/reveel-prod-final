@@ -113,6 +113,85 @@ export async function sendChangeAlertEmail(
 // What: Email weekly competitive intelligence report
 // Why: Keep users updated on all competitor activity
 
+// ============================================
+// SEND PASSWORD RESET EMAIL
+// ============================================
+// What: Email user with password reset link
+// Why: Allow users to securely reset forgotten passwords
+
+export async function sendPasswordResetEmail(
+  userEmail: string,
+  userName: string,
+  resetToken: string
+) {
+  try {
+    const resetLink = `${process.env.NEXTAUTH_URL}/reset-password/${resetToken}`
+
+    const { data, error } = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || 'Reveel <notifications@yourdomain.com>',
+      to: userEmail,
+      subject: 'Reset Your Reveel Password',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+            .button { display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+            .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }
+            .warning { background: #fef3c7; border: 1px solid #fcd34d; padding: 15px; border-radius: 6px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🔐 Password Reset Request</h1>
+            </div>
+            <div class="content">
+              <h2>Hi ${userName},</h2>
+              <p>We received a request to reset your password. Click the button below to set a new password:</p>
+              
+              <a href="${resetLink}" class="button">
+                Reset Password
+              </a>
+              
+              <div class="warning">
+                <strong>⏰ Important:</strong> This link expires in 1 hour. If you didn't request this, please ignore this email.
+              </div>
+              
+              <p>If the button doesn't work, copy and paste this link into your browser:</p>
+              <p style="word-break: break-all; background: #f3f4f6; padding: 10px; border-radius: 4px; font-size: 12px;">
+                ${resetLink}
+              </p>
+              
+              <div class="footer">
+                <p>This is an automated email from Reveel. Do not reply to this email.</p>
+                <p>If you have questions, please contact our support team.</p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    })
+
+    if (error) {
+      console.error('Error sending password reset email:', error)
+      return false
+    }
+
+    console.log('Password reset email sent successfully:', data)
+    return true
+    
+  } catch (error) {
+    console.error('Error sending password reset email:', error)
+    return false
+  }
+}
+
 export async function sendWeeklyReportEmail(
   userEmail: string,
   userName: string,

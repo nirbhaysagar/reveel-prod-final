@@ -36,6 +36,8 @@ export default function CompetitorsPage() {
     }
   }
 
+  // TODO: handleDelete function to be implemented later
+
   const getPlatformIcon = (platform: string) => {
     switch (platform) {
       case 'instagram':
@@ -138,11 +140,7 @@ export default function CompetitorsPage() {
                         View Details
                       </Button>
                     </Link>
-                    <Link href={`/dashboard/competitors/${competitor.id}/edit`} className="flex-1">
-                      <Button variant="outline" className="w-full">
-                        Edit
-                      </Button>
-                    </Link>
+                    {/* TODO: Edit and Delete buttons to be added later */}
                   </div>
                 </div>
               </CardContent>

@@ -1,4 +1,6 @@
-import { TrendingUp, Users, AlertTriangle, Brain, ArrowUpRight, Activity, Zap, Target } from 'lucide-react'
+'use client'
+
+import { Activity, AlertTriangle, ArrowUpRight, Brain, Target, TrendingUp, Users, Zap } from 'lucide-react'
 
 export default function DashboardPage() {
   return (

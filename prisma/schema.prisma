@@ -43,6 +43,12 @@ model User {
   image         String?
   // Profile picture URL
   
+  passwordResetToken String?
+  // Token for password reset
+  
+  passwordResetExpires DateTime?
+  // When the reset token expires
+  
   createdAt     DateTime  @default(now())
   // @default(now()): Auto-set to current time on creation
   

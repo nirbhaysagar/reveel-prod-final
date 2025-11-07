@@ -16,7 +16,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "worker": "tsx watch worker.ts",
     "worker:prod": "tsx worker.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "mock-store": "npm run start --prefix mock-store"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
