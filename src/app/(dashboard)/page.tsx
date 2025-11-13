@@ -1,4 +1,5 @@
 'use client'
+export const dynamic = 'force-dynamic';
 
 import { Activity, AlertTriangle, ArrowUpRight, Brain, Target, TrendingUp, Users, Zap } from 'lucide-react'
 
